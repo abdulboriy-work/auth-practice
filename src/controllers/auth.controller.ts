@@ -12,7 +12,9 @@ export class AuthController {
 
       const existingUser = await User.findOne({ email });
       if (existingUser) {
-        res.status(400).json({ message: 'Email already registered' });
+        res
+          .status(400)
+          .json({ message: 'Email already registered', statusCode: 400 });
         return;
       }
 
@@ -38,9 +40,12 @@ export class AuthController {
         message: 'User registered successfully',
         accessToken,
         refreshToken,
+        statusCode: 201,
       });
     } catch (error) {
-      res.status(500).json({ message: 'Error registering user' });
+      res
+        .status(500)
+        .json({ message: 'Error registering user', statusCode: 500 });
     }
   }
 
@@ -50,7 +55,9 @@ export class AuthController {
 
       const user = await User.findOne({ email });
       if (!user) {
-        res.status(401).json({ message: 'Invalid credentials' });
+        res
+          .status(401)
+          .json({ message: 'Invalid credentials', statusCode: 401 });
         return;
       }
 
@@ -75,9 +82,13 @@ export class AuthController {
       user.refreshToken = refreshToken;
       await user.save();
 
-      res.json({ accessToken, refreshToken });
+      res.json({
+        accessToken,
+        refreshToken,
+        statusCode: 200,
+      });
     } catch (error) {
-      res.status(500).json({ message: 'Error logging in' });
+      res.status(500).json({ message: 'Error logging in', statusCode: 500 });
     }
   }
 
@@ -85,7 +96,9 @@ export class AuthController {
     try {
       const { refreshToken } = req.body;
       if (!refreshToken) {
-        res.status(401).json({ message: 'Refresh token is required' });
+        res
+          .status(401)
+          .json({ message: 'Refresh token is required', statusCode: 401 });
         return;
       }
 
@@ -119,9 +132,11 @@ export class AuthController {
       user.refreshToken = newRefreshToken;
       await user.save();
 
-      res.json({ accessToken, refreshToken: newRefreshToken });
+      res.json({ accessToken, refreshToken: newRefreshToken, statusCode: 200 });
     } catch (error) {
-      res.status(500).json({ message: 'Error refreshing token' });
+      res
+        .status(500)
+        .json({ message: 'Error refreshing token', statusCode: 500 });
     }
   }
 
@@ -131,7 +146,7 @@ export class AuthController {
       const user = await User.findOne({ email });
 
       if (!user) {
-        res.status(404).json({ message: 'User not found' });
+        res.status(404).json({ message: 'User not found', statusCode: 404 });
         return;
       }
 
@@ -146,9 +161,11 @@ export class AuthController {
 
       await sendResetPasswordEmail(user.email, resetToken);
 
-      res.json({ message: 'Password reset email sent' });
+      res.json({ message: 'Password reset email sent', statusCode: 200 });
     } catch (error) {
-      res.status(500).json({ message: 'Error sending reset email' });
+      res
+        .status(500)
+        .json({ message: 'Error sending reset email', statusCode: 500 });
     }
   }
 
@@ -176,9 +193,11 @@ export class AuthController {
       user.resetPasswordExpires = undefined;
       await user.save();
 
-      res.json({ message: 'Password reset successful' });
+      res.json({ message: 'Password reset successful', statusCode: 200 });
     } catch (error) {
-      res.status(500).json({ message: 'Error resetting password' });
+      res
+        .status(500)
+        .json({ message: 'Error resetting password', statusCode: 500 });
     }
   }
 
@@ -192,9 +211,43 @@ export class AuthController {
         await user.save();
       }
 
-      res.json({ message: 'Logged out successfully' });
+      res.json({ message: 'Logged out successfully', statusCode: 200 });
     } catch (error) {
-      res.status(500).json({ message: 'Error logging out' });
+      res.status(500).json({ message: 'Error logging out', statusCode: 500 });
+    }
+  }
+
+  static async verifyToken(req: Request, res: Response) {
+    try {
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res
+          .status(401)
+          .json({ message: 'No token provided', statusCode: 401 });
+      }
+
+      const token = authHeader.split(' ')[1];
+
+      try {
+        const decoded = jwt.verify(
+          token,
+          config.jwtSecret as jwt.Secret,
+        ) as jwt.JwtPayload;
+        const user = await User.findById(decoded.userId, {
+          password: 0,
+          refreshToken: 0,
+          __v: 0,
+          _id: 0,
+        });
+        res.json({ valid: true, user, statusCode: 200 });
+      } catch (error) {
+        res.status(401).json({ valid: false, message: 'Invalid token' });
+      }
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: 'Error verifying token', statusCode: 500 });
     }
   }
 }
